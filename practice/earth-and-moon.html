@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Earth and moon</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#04050d}canvas{display:block}</style></head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x04050d);
+
+const camera = new THREE.PerspectiveCamera(45, 800/450, 0.1, 300);
+camera.position.set(0, 0.4, 10.5);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(800, 450);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x2a3550, 1.0));
+const sun = new THREE.DirectionalLight(0xfff6e8, 1.65);
+sun.position.set(-7, 3, 7);
+scene.add(sun);
+const bounce = new THREE.PointLight(0x3a6ea8, 0.35, 40);
+bounce.position.set(6, -4, -4);
+scene.add(bounce);
+
+// ---------- star field ----------
+const sGeo = new THREE.BufferGeometry();
+const N = 600, sp = new Float32Array(N*3);
+for (let i=0;i<N;i++){
+  const r = 40 + Math.random()*50;
+  const th = Math.random()*Math.PI*2;
+  const ph = Math.acos(2*Math.random()-1);
+  sp[i*3]   = r*Math.sin(ph)*Math.cos(th);
+  sp[i*3+1] = r*Math.sin(ph)*Math.sin(th);
+  sp[i*3+2] = -Math.abs(r*Math.cos(ph)) - 20;
+}
+sGeo.setAttribute('position', new THREE.BufferAttribute(sp,3));
+scene.add(new THREE.Points(sGeo, new THREE.PointsMaterial({
+  color:0xdfe9ff, size:0.42, transparent:true, opacity:0.9 })));
+
+// ---------- procedural earth map ----------
+function earthMap(){
+  const cv = document.createElement('canvas');
+  cv.width = 1024; cv.height = 512;
+  const c = cv.getContext('2d');
+
+  // ocean
+  const og = c.createLinearGradient(0, 0, 0, 512);
+  og.addColorStop(0,   '#1a4f8f');
+  og.addColorStop(0.5, '#1f6ec0');
+  og.addColorStop(1,   '#1a4f8f');
+  c.fillStyle = og;
+  c.fillRect(0, 0, 1024, 512);
+
+  // landmasses: rough continental shapes, drawn as clustered blobs
+  const land = '#3f8a4e';
+  const coast = '#2f6b3c';
+  function blob(cx, cy, pts, seed){
+    c.beginPath();
+    let a = 0;
+    for (let i = 0; i <= pts; i++){
+      const ang = (i / pts) * Math.PI * 2;
+      const rad = (0.55 + 0.45 * Math.abs(Math.sin(i * 2.3 + seed))) * 46;
+      const x = cx + Math.cos(ang) * rad * 1.25;
+      const y = cy + Math.sin(ang) * rad * 0.85;
+      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.closePath();
+  }
+
+  // Africa / Europe
+  blob(545, 250, 16, 1.2);
+  c.fillStyle = land; c.fill();
+  blob(520, 175, 12, 2.4); c.fill();
+  // Asia
+  blob(700, 190, 18, 3.1); c.fill();
+  // North America
+  blob(210, 165, 16, 4.0); c.fill();
+  // South America
+  blob(275, 330, 14, 5.2); c.fill();
+  // Australia
+  blob(800, 350, 10, 6.4); c.fill();
+  // Antarctica
+  c.fillStyle = '#e8f2ff';
+  c.fillRect(0, 470, 1024, 42);
+  // Arctic ice
+  c.fillStyle = '#e8f2ff';
+  c.globalAlpha = 0.85;
+  c.fillRect(0, 0, 1024, 26);
+  c.globalAlpha = 1;
+
+  // coastline shading
+  c.strokeStyle = coast;
+  c.lineWidth = 6;
+  c.globalAlpha = 0.35;
+  c.stroke();
+  c.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// ---------- earth ----------
+const earthTilt = new THREE.Group();          // 23.4° axial tilt
+earthTilt.rotation.z = -23.4 * Math.PI / 180;
+scene.add(earthTilt);
+
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(1.0, 64, 48),
+  new THREE.MeshPhongMaterial({map: earthMap(), shininess: 12, specular: 0x223344})
+);
+earthTilt.add(earth);
+
+const clouds = new THREE.Mesh(
+  new THREE.SphereGeometry(1.012, 48, 36),
+  new THREE.MeshPhongMaterial({color:0xffffff, transparent:true, opacity:0.10, depthWrite:false})
+);
+earthTilt.add(clouds);
+
+const air = new THREE.Mesh(
+  new THREE.SphereGeometry(1.05, 40, 28),
+  new THREE.MeshBasicMaterial({color:0x6fa8ff, transparent:true, opacity:0.10})
+);
+earthTilt.add(air);
+
+// ---------- moon ----------
+function moonMap(){
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 256;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#cfcabf';
+  c.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 90; i++){
+    const x = Math.random() * 512, y = Math.random() * 256;
+    const r = 3 + Math.random() * 16;
+    const g = c.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(120,116,108,0.85)');
+    g.addColorStop(1, 'rgba(150,146,138,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(x, y, r, 0, Math.PI*2); c.fill();
+  }
+  return new THREE.CanvasTexture(cv);
+}
+
+const moonPivot = new THREE.Group();          // orbit plane, inclined 5°
+moonPivot.rotation.x = 5 * Math.PI / 180;
+moonPivot.rotation.z = 0.10;
+scene.add(moonPivot);
+
+const moon = new THREE.Mesh(
+  new THREE.SphereGeometry(0.27, 40, 28),
+  new THREE.MeshPhongMaterial({map: moonMap(), shininess: 4})
+);
+moonPivot.add(moon);
+
+// visible orbit path
+const orbitPts = [];
+const ORB = 2.35;
+for (let i = 0; i <= 160; i++){
+  const a = (i/160) * Math.PI * 2;
+  orbitPts.push(new THREE.Vector3(Math.cos(a)*ORB, 0, Math.sin(a)*ORB));
+}
+const orbitLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(orbitPts),
+  new THREE.LineBasicMaterial({color:0x557799, transparent:true, opacity:0.45})
+);
+moonPivot.add(orbitLine);
+
+const STEP = 1/30;
+
+function frame(t){
+  // EARTH ROTATION: spins about its own tilted axis, once every 4 s
+  earth.rotation.y = t * (Math.PI * 2 / 4.0);
+  clouds.rotation.y = t * (Math.PI * 2 / 4.6);
+
+  // MOON REVOLUTION: travels the orbit once every 5 s, in the inclined plane
+  const a = t * (Math.PI * 2 / 5.0);
+  moon.position.set(Math.cos(a) * ORB, 0, Math.sin(a) * ORB);
+
+  // tidal locking: the same face always points at earth
+  moon.rotation.y = -a + Math.PI/2;
+
+  renderer.render(scene, camera);
+}
+
+if (location.hash === '#cap') {
+  window.__step = (i) => { frame(i * STEP); };
+  window.__step(1);
+} else {
+  let t = 0; const loop = () => { t += STEP; frame(t); requestAnimationFrame(loop); };
+  loop();
+}
+window.__ready = true;
+</script>
+</body></html>

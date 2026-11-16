@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Bouncing ball</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#0a0f1f}canvas{display:block}</style></head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f1f);
+
+const camera = new THREE.PerspectiveCamera(45, 800/450, 0.1, 200);
+camera.position.set(0, 2.4, 9.5);
+camera.lookAt(0, 1.51, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(800, 450);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.68));
+const sun = new THREE.DirectionalLight(0xfff2dc, 1.25);
+sun.position.set(-6, 10, 8);
+scene.add(sun);
+const fill = new THREE.PointLight(0xffb070, 0.45, 24);
+fill.position.set(4, 2, 5);
+scene.add(fill);
+
+// green ground, far edge high in frame
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120),
+  new THREE.MeshLambertMaterial({color:0x357e5f}));
+ground.rotation.x = -Math.PI/2;
+scene.add(ground);
+
+// ball
+const ball = new THREE.Mesh(new THREE.SphereGeometry(0.62, 36, 26),
+  new THREE.MeshPhongMaterial({color:0xd8502e, shininess:70, specular:0xff9a70}));
+scene.add(ball);
+
+// contact shadow
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.62, 26),
+  new THREE.MeshBasicMaterial({color:0x1d4436, transparent:true, opacity:0.7}));
+shadow.rotation.x = -Math.PI/2;
+shadow.position.y = 0.01;
+scene.add(shadow);
+
+const STEP = 1/30;
+const R = 0.62;
+const H = 3.07;
+
+function frame(t){
+  const period = 4.0;
+  const u = ((t + 0.5) % period) / period;
+  const h = 4 * u * (1 - u);          // parabola: sharp top, gravity fall
+  const speed = Math.abs(1 - 2 * u);
+  const y = R + h * H;
+
+  // squash at contact, stretch mid-air
+  const contact = Math.pow(1 - h, 8);
+  const sy = 1 - contact * 0.30 + speed * 0.05;
+  const sxz = 1 + contact * 0.24 - speed * 0.03;
+
+  ball.scale.set(sxz, sy, sxz);
+  ball.position.set(0, R * sy + h * H, 0);
+
+  const sc = 1 - h * 0.5;
+  shadow.scale.set(sc, sc, sc);
+  shadow.material.opacity = 0.7 * (1 - h * 0.65);
+
+  renderer.render(scene, camera);
+}
+
+if (location.hash === '#cap') {
+  window.__step = (i) => { frame(i * STEP); };
+  window.__step(1);
+} else {
+  let t = 0; const loop = () => { t += STEP; frame(t); requestAnimationFrame(loop); };
+  loop();
+}
+window.__ready = true;
+</script>
+</body></html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Car to and fro</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#0a0f1f}canvas{display:block}</style></head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0f1f);
+scene.fog = new THREE.Fog(0x357e5f, 40, 90);
+
+const camera = new THREE.PerspectiveCamera(38, 800/450, 0.1, 260);
+camera.position.set(0, 3.5, 26);
+camera.lookAt(0, -0.10, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(800, 450);
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+const sun = new THREE.DirectionalLight(0xfff6e0, 1.1);
+sun.position.set(-8, 12, 10);
+scene.add(sun);
+
+// green field
+const field = new THREE.Mesh(new THREE.PlaneGeometry(160, 160),
+  new THREE.MeshLambertMaterial({color:0x357e5f}));
+field.rotation.x = -Math.PI/2;
+scene.add(field);
+
+// road strip running left to right
+const road = new THREE.Mesh(new THREE.PlaneGeometry(160, 8),
+  new THREE.MeshLambertMaterial({color:0x3c3c3c}));
+road.rotation.x = -Math.PI/2;
+road.position.set(0, 0.02, 4);
+scene.add(road);
+
+// dashed centre line
+for (let x = -78; x < 80; x += 6) {
+  const d = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.35),
+    new THREE.MeshBasicMaterial({color:0xd8d8d8}));
+  d.rotation.x = -Math.PI/2;
+  d.position.set(x, 0.03, 4);
+  scene.add(d);
+}
+
+// car
+const car = new THREE.Group();
+car.position.set(0, 0, 4);
+scene.add(car);
+
+const paint = new THREE.MeshPhongMaterial({color:0x2b6fd6, shininess:95});
+const roofM = new THREE.MeshPhongMaterial({color:0xe8eef6, shininess:70});
+const dark  = new THREE.MeshPhongMaterial({color:0x15171d});
+const glass = new THREE.MeshPhongMaterial({color:0x9fd4ff, shininess:200, transparent:true, opacity:0.55});
+
+const lower = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.80, 1.6), paint);
+lower.position.y = 0.80; car.add(lower);
+
+const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.52, 1.44), paint);
+cabin.position.set(-0.15, 1.26, 0); car.add(cabin);
+const roofStrip = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.14, 1.30), roofM);
+roofStrip.position.set(-0.15, 1.53, 0); car.add(roofStrip);
+
+const wind = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.36, 1.3), glass);
+wind.position.set(0.72, 1.28, 0); car.add(wind);
+const rear = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.34, 1.3), glass);
+rear.position.set(-1.02, 1.28, 0); car.add(rear);
+[-1, 1].forEach(s => {
+  const side = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.3, 0.05), glass);
+  side.position.set(-0.15, 1.30, s*0.73); car.add(side);
+});
+
+[-1, 1].forEach(s => {
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8),
+    new THREE.MeshBasicMaterial({color:0xfff6c0}));
+  lamp.position.set(1.72, 0.78, s*0.5); car.add(lamp);
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8),
+    new THREE.MeshBasicMaterial({color:0xff3a2a}));
+  tail.position.set(-1.72, 0.78, s*0.5); car.add(tail);
+});
+
+// wheels: the axle runs along local Z, so the roll is a rotation about Z.
+// spokes make the rotation visible instead of a smooth cylinder.
+const wheels = [];
+const WHEEL_R = 0.44;
+[[1.1, 0.85], [1.1, -0.85], [-1.1, 0.85], [-1.1, -0.85]].forEach(([x, z]) => {
+  const w = new THREE.Group();
+  w.position.set(x, WHEEL_R, z);
+
+  const tyre = new THREE.Mesh(new THREE.CylinderGeometry(WHEEL_R, WHEEL_R, 0.26, 24), dark);
+  tyre.rotation.x = Math.PI/2;
+  w.add(tyre);
+
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.28, 18),
+    new THREE.MeshPhongMaterial({color:0xc6ccd6, shininess:170}));
+  rim.rotation.x = Math.PI/2;
+  w.add(rim);
+
+  // spokes: four bars across the rim face, so the spin reads
+  [0, Math.PI/4, Math.PI/2, Math.PI*3/4].forEach(a => {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.05, 0.30),
+      new THREE.MeshPhongMaterial({color:0x9aa2ae}));
+    spoke.rotation.z = a;
+    w.add(spoke);
+  });
+
+  car.add(w);
+  wheels.push(w);
+});
+
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.8),
+  new THREE.MeshBasicMaterial({color:0x1d4436, transparent:true, opacity:0.55}));
+shadow.rotation.x = -Math.PI/2;
+shadow.position.set(0, 0.015, 4);
+scene.add(shadow);
+
+const STEP = 1/30;
+const AMP = 2.40;
+let lastX = 4.55 + Math.sin(-1.93) * 2.40;
+let spin = 0;
+
+function frame(t){
+  const u = t * 1.40 - 1.93;
+  const s = Math.sin(u);
+  car.position.x = 4.55 + s * AMP;
+  car.rotation.y = Math.cos(u) >= 0 ? 0 : Math.PI;
+
+  // roll the wheels by the distance actually travelled, not by wall-clock time:
+  // a wheel that keeps spinning while the car slows is what makes it look wrong
+  const dist = car.position.x - lastX;
+  lastX = car.position.x;
+  const roll = (dist * Math.cos(car.rotation.y)) / WHEEL_R;  // local direction
+  spin += roll;
+  wheels.forEach(w => { w.rotation.z = spin; });
+
+  shadow.position.x = car.position.x;
+  renderer.render(scene, camera);
+}
+
+if (location.hash === '#cap') {
+  window.__step = (i) => { frame(i * STEP); };
+  window.__step(1);
+} else {
+  let t = 0; const loop = () => { t += STEP; frame(t); requestAnimationFrame(loop); };
+  loop();
+}
+window.__ready = true;
+</script>
+</body></html>

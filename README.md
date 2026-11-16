@@ -49,3 +49,11 @@ ffmpeg -framerate 30 -i frames_dir/frame-%04d.png \
 - Everything is procedural: no textures, no external models, no assets to load.
 - Geometry is built from primitives (spheres, cylinders, cones) assembled into characters.
 - Lighting, shadows and the caption overlays are part of the scene, not added in editing.
+
+## practice/
+
+The earlier set, rebuilt to match the originals frame for frame.
+
+- `practice/ball-bounce.html` — a ball bouncing on green ground, parabolic arc, squash on contact
+- `practice/car-to-and-fro.html` — a car driving right and left, wheels rolling by distance travelled
+- `practice/earth-and-moon.html` — earth spinning on a 23.4° tilted axis while the moon revolves in a 5°-inclined, tidally locked orbit
