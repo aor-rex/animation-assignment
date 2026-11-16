@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>2. A car rotating about the same axis</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#070b14;font-family:Helvetica,Arial,sans-serif}
+canvas{display:block}
+#cap{position:fixed;left:0;right:0;bottom:0;padding:10px 18px 12px;
+ background:linear-gradient(to top,rgba(3,6,12,.94),rgba(3,6,12,0));color:#e8eef8;font-size:15px}
+#cap b{color:#7fd4ff;letter-spacing:1.5px;font-size:12px;display:block;margin-bottom:2px}
+#hud{position:fixed;top:14px;right:18px;text-align:right;color:#cfe0f2;font-size:12px;letter-spacing:1px}
+#hud .big{font-size:26px;color:#7fd4ff;letter-spacing:0}
+#title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+ background:rgba(5,9,16,.84);color:#fff;transition:opacity .5s}
+#title h1{font-size:25px;margin:0 0 6px;font-weight:600}
+#title p{margin:0;color:#9fb4cc;font-size:14px}
+</style>
+</head>
+<body>
+<div id="title"><h1>2. A car rotating about the same axis</h1><p>one full turn around its own vertical axis</p></div>
+<div id="hud"><div class="big" id="deg">0&deg;</div>ROTATION</div>
+<div id="cap"><b>PRINCIPLE</b><span id="capText"></span></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x070b14);
+scene.fog = new THREE.Fog(0x070b14, 12, 30);
+
+const camera = new THREE.PerspectiveCamera(42, 800/450, 0.1, 100);
+camera.position.set(5.2, 2.6, 6.4);
+camera.lookAt(0, 0.85, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(800, 450);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const key = new THREE.DirectionalLight(0xffffff, 1.3);
+key.position.set(6, 9, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+key.shadow.camera.left = -7; key.shadow.camera.right = 7;
+key.shadow.camera.top = 7; key.shadow.camera.bottom = -7;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88b6ff, 0.55);
+fill.position.set(-7, 4, -5);
+scene.add(fill);
+const rim = new THREE.PointLight(0xffd9a0, 0.9, 26);
+rim.position.set(0, 3.4, -6);
+scene.add(rim);
+
+// ---------- stage ----------
+const floor = new THREE.Mesh(new THREE.CircleGeometry(14, 80),
+  new THREE.MeshLambertMaterial({color:0x121a2b}));
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// turntable disc
+const disc = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 0.12, 72),
+  new THREE.MeshPhongMaterial({color:0x1a2438, shininess:30}));
+disc.position.y = 0.06;
+disc.receiveShadow = true;
+scene.add(disc);
+
+// concentric guide rings on the disc
+[3.4, 2.6, 1.8].forEach(r => {
+  const pts = [];
+  for (let i = 0; i <= 96; i++) {
+    const a = (i/96)*Math.PI*2;
+    pts.push(new THREE.Vector3(Math.cos(a)*r, 0.125, Math.sin(a)*r));
+  }
+  scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0x2f4d75, transparent:true, opacity:0.7})));
+});
+
+// ---------- the axis ----------
+const axisMat = new THREE.LineDashedMaterial({color:0x46e07a, dashSize:0.16, gapSize:0.1});
+const axisGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(0, 0.12, 0), new THREE.Vector3(0, 3.5, 0)
+]);
+const axisLine = new THREE.Line(axisGeo, axisMat);
+axisLine.computeLineDistances();
+scene.add(axisLine);
+
+// arrow ring at the top of the axis showing the sense of rotation
+const arrowRing = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.022, 8, 60),
+  new THREE.MeshBasicMaterial({color:0x46e07a, transparent:true, opacity:0.85}));
+arrowRing.rotation.x = Math.PI/2;
+arrowRing.position.y = 3.35;
+scene.add(arrowRing);
+const arrowHead = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.26, 10),
+  new THREE.MeshBasicMaterial({color:0x46e07a}));
+arrowHead.position.set(0.52, 3.35, 0);
+arrowHead.rotation.z = -Math.PI/2;
+scene.add(arrowHead);
+
+// ---------- car ----------
+const paint = new THREE.MeshPhongMaterial({color:0xd93b3b, shininess:95, specular:0x888888});
+const paintDark = new THREE.MeshPhongMaterial({color:0xa82a2a, shininess:80});
+const glass = new THREE.MeshPhongMaterial({color:0x1a2a3a, shininess:120,
+  transparent:true, opacity:0.72, specular:0xffffff});
+const rubber = new THREE.MeshLambertMaterial({color:0x14161c});
+const chromeMat = new THREE.MeshPhongMaterial({color:0xc9d2de, shininess:140});
+const lampOn = new THREE.MeshBasicMaterial({color:0xfff3c4});
+const lampRed = new THREE.MeshBasicMaterial({color:0xff5a4a});
+
+const car = new THREE.Group();
+car.position.y = 0.72;              // sits on its wheels above the disc
+scene.add(car);
+
+const L = 3.5, W = 1.62;
+
+// lower body
+const body = new THREE.Mesh(new THREE.BoxGeometry(L, 0.52, W), paint);
+body.castShadow = true;
+car.add(body);
+
+// sculpted shoulders: a slightly narrower slab on top
+const shoulder = new THREE.Mesh(new THREE.BoxGeometry(L*0.94, 0.3, W*0.92), paint);
+shoulder.position.y = 0.4;
+shoulder.castShadow = true;
+car.add(shoulder);
+
+// bonnet and boot taper
+const bonnet = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.16, W*0.9), paint);
+bonnet.position.set(1.15, 0.56, 0);
+bonnet.rotation.z = -0.035;
+car.add(bonnet);
+const boot = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.16, W*0.9), paint);
+boot.position.set(-1.28, 0.56, 0);
+boot.rotation.z = 0.03;
+car.add(boot);
+
+// cabin
+const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.62, W*0.86), paint);
+cabin.position.set(-0.16, 0.86, 0);
+cabin.castShadow = true;
+car.add(cabin);
+
+// greenhouse glass
+const wind = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, W*0.8), glass);
+wind.position.set(0.66, 0.88, 0);
+wind.rotation.z = -0.42;
+car.add(wind);
+const rear = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.46, W*0.78), glass);
+rear.position.set(-0.98, 0.88, 0);
+rear.rotation.z = 0.4;
+car.add(rear);
+[-1, 1].forEach(s => {
+  const side = new THREE.Mesh(new THREE.BoxGeometry(1.34, 0.44, 0.08), glass);
+  side.position.set(-0.16, 0.9, s * W*0.435);
+  car.add(side);
+});
+
+// roof
+const roof = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, W*0.82), paintDark);
+roof.position.set(-0.18, 1.19, 0);
+roof.castShadow = true;
+car.add(roof);
+
+// wheels with rims
+const wheels = [];
+[[1.08, 1], [1.08, -1], [-1.12, 1], [-1.12, -1]].forEach(([x, side]) => {
+  const wheel = new THREE.Group();
+  wheel.position.set(x, -0.34, side * (W/2 + 0.04));
+
+  const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.44, 0.28, 28), rubber);
+  tyre.rotation.x = Math.PI/2;
+  tyre.castShadow = true;
+  wheel.add(tyre);
+
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.27, 0.3, 24), chromeMat);
+  rim.rotation.x = Math.PI/2;
+  wheel.add(rim);
+
+  // five spokes so rotation reads clearly
+  for (let i = 0; i < 5; i++) {
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.32), chromeMat);
+    spoke.rotation.z = (i/5) * Math.PI * 2;
+    wheel.add(spoke);
+  }
+  car.add(wheel);
+  wheels.push(wheel);
+});
+
+// lights and mirrors
+[[0.76], [-0.76]].forEach(([z]) => {
+  const hl = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 10), lampOn);
+  hl.position.set(L/2 - 0.04, 0.02, z);
+  car.add(hl);
+});
+[[0.72], [-0.72]].forEach(([z]) => {
+  const tl = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.14, 0.28), lampRed);
+  tl.position.set(-L/2 + 0.02, 0.06, z);
+  car.add(tl);
+});
+[-1, 1].forEach(s => {
+  const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.22), paintDark);
+  mirror.position.set(0.38, 0.95, s * (W/2 + 0.12));
+  car.add(mirror);
+});
+
+// contact shadow under the car
+const carShadow = new THREE.Mesh(new THREE.CircleGeometry(1.9, 40),
+  new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.38}));
+carShadow.rotation.x = -Math.PI/2;
+carShadow.position.y = 0.13;
+carShadow.scale.set(1.35, 0.55, 1);
+scene.add(carShadow);
+
+// ---------- animation ----------
+const STEP = 1/30;
+const DUR = 6.0;
+const capText = document.getElementById('capText');
+const degEl = document.getElementById('deg');
+const titleEl = document.getElementById('title');
+
+function caption(tt) {
+  if (tt < 0.9) return "STAGING \u2014 the axis is marked so the rotation has a reference";
+  if (tt < 2.0) return "SLOW IN \u2014 the turntable accelerates out of rest";
+  if (tt < 4.2) return "LINEAR TURN \u2014 constant angular velocity through the orbit";
+  if (tt < 5.2) return "OVERLAPPING ACTION \u2014 the body rolls a beat behind the chassis";
+  return "SLOW OUT \u2014 the rotation eases into its stop";
+}
+
+function easeInOut(u) {
+  return u < 0.5 ? 2*u*u : 1 - Math.pow(-2*u + 2, 2)/2;
+}
+
+function frame(tt) {
+  const u = Math.min(1, tt / DUR);
+  const ang = easeInOut(u) * Math.PI * 2;     // exactly one turn, eased at both ends
+  car.rotation.y = ang;
+  carShadow.rotation.z = ang;
+
+  // wheel spin follows travel even though the car is stationary: it sells the motion
+  wheels.forEach(w => { w.rotation.z = -ang * 1.6; });
+
+  // overlapping action: the body leans and settles slightly late
+  const lag = Math.sin(ang - 0.6);
+  car.rotation.z = lag * 0.012;
+  car.position.y = 0.72 + Math.sin(ang * 2) * 0.006;
+
+  // suspension compression on the outside wheels
+  wheels.forEach((w, i) => {
+    w.position.y = -0.34 + Math.sin(ang * 2 + i * 0.4) * 0.004;
+  });
+
+  // axis and arrow ring pulse gently
+  arrowRing.rotation.z = ang * 1.0;
+  arrowHead.position.set(Math.cos(ang) * 0.52, 3.35, Math.sin(ang) * 0.52);
+  arrowHead.rotation.y = -ang;
+  arrowHead.rotation.z = -Math.PI/2;
+
+  degEl.textContent = Math.round((ang * 180 / Math.PI)) + "\u00b0";
+  capText.textContent = caption(tt);
+  titleEl.style.opacity = tt < 0.9 ? 1 : 0;
+
+  // camera drifts in a touch
+  camera.position.x = 5.2 - u * 0.5;
+  camera.position.y = 2.6 - u * 0.15;
+  camera.lookAt(0, 0.85, 0);
+
+  renderer.render(scene, camera);
+}
+
+if (location.hash === '#cap') {
+  window.__step = (i) => { frame(i * STEP); };
+  window.__step(1);
+} else {
+  let last = performance.now(), acc = 0, t = 0;
+  const loop = (now) => {
+    acc += (now - last) / 1000; last = now;
+    if (acc > STEP) { t += STEP; acc = 0; }
+    frame(t);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+window.__ready = true;
+</script>
+</body>
+</html>

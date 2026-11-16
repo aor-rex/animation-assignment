@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>1. A cat watching a mouse circle around it</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0a1020;font-family:Helvetica,Arial,sans-serif}
+canvas{display:block}
+#cap{position:fixed;left:0;right:0;bottom:0;padding:10px 18px 12px;background:linear-gradient(to top,rgba(4,8,16,.92),rgba(4,8,16,0));
+     color:#e8eef8;font-size:15px;letter-spacing:.2px}
+#cap b{color:#7fd4ff;letter-spacing:1.5px;font-size:12px;display:block;margin-bottom:2px}
+#title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;
+     background:rgba(6,10,20,.82);color:#fff;transition:opacity .5s}
+#title h1{font-size:26px;margin:0 0 6px;font-weight:600;letter-spacing:.4px}
+#title p{margin:0;color:#9fb4cc;font-size:14px}
+</style>
+</head>
+<body>
+<div id="title"><h1>1. Cat watching a mouse circle around it</h1><p>animation principles study</p></div>
+<div id="cap"><b>PRINCIPLE</b><span id="capText"></span></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1020);
+scene.fog = new THREE.Fog(0x0a1020, 18, 40);
+
+const camera = new THREE.PerspectiveCamera(48, 800/450, 0.1, 120);
+camera.position.set(3.1, 2.55, 6.2);
+camera.lookAt(0.15, 1.25, 0);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(800, 450);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const key = new THREE.DirectionalLight(0xfff2d8, 1.25);
+key.position.set(5, 9, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+key.shadow.camera.left = -8; key.shadow.camera.right = 8;
+key.shadow.camera.top = 8; key.shadow.camera.bottom = -8;
+scene.add(key);
+const rim = new THREE.PointLight(0x6fa8ff, 0.85, 34);
+rim.position.set(-7, 4, -6);
+scene.add(rim);
+
+// ---------- helpers ----------
+function capsule(r, len, mat) {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 14), mat);
+  const a = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat);
+  const b = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat);
+  a.position.y = len/2; b.position.y = -len/2;
+  g.add(body, a, b);
+  return g;
+}
+
+// ---------- stage ----------
+const floor = new THREE.Mesh(new THREE.CircleGeometry(11, 72),
+  new THREE.MeshLambertMaterial({color:0x2b3b55}));
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// soft rug so the cat is not floating on a void
+const rug = new THREE.Mesh(new THREE.CircleGeometry(2.4, 48),
+  new THREE.MeshLambertMaterial({color:0x3d4a63}));
+rug.rotation.x = -Math.PI/2;
+rug.position.y = 0.005;
+rug.receiveShadow = true;
+scene.add(rug);
+
+// path ring the mouse follows
+const ringPts = [];
+for (let i = 0; i <= 160; i++) {
+  const a = (i/160) * Math.PI * 2;
+  ringPts.push(new THREE.Vector3(Math.cos(a)*3.3, 0.012, Math.sin(a)*3.3));
+}
+scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts),
+  new THREE.LineBasicMaterial({color:0x4b7fbd, transparent:true, opacity:0.4})));
+
+// ---------- cat ----------
+const catMat  = new THREE.MeshPhongMaterial({color:0xc9ced8, shininess:24});
+const catMat2 = new THREE.MeshPhongMaterial({color:0xa9b0bd, shininess:20});
+const darkMat = new THREE.MeshPhongMaterial({color:0x666d7b, shininess:20});
+
+const cat = new THREE.Group();
+scene.add(cat);
+
+// rear quarters, lowest and furthest back
+const rump = new THREE.Mesh(new THREE.SphereGeometry(0.56, 24, 18), catMat2);
+rump.position.set(0, 0.60, -0.52);
+rump.scale.set(1.05, 0.95, 1.05);
+rump.castShadow = true;
+cat.add(rump);
+
+// back, sloping up toward the shoulders
+const back = new THREE.Mesh(new THREE.SphereGeometry(0.50, 24, 18), catMat);
+back.position.set(0, 0.86, 0.02);
+back.scale.set(0.98, 0.86, 1.30);
+back.castShadow = true;
+cat.add(back);
+
+// chest, tallest point of the body
+const chest = new THREE.Mesh(new THREE.SphereGeometry(0.44, 24, 18), catMat);
+chest.position.set(0, 1.02, 0.42);
+chest.scale.set(0.95, 1.05, 0.95);
+chest.castShadow = true;
+cat.add(chest);
+
+// neck, narrows so the head reads separately
+const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.30, 0.30, 16), catMat);
+neck.position.set(0, 1.32, 0.48);
+neck.rotation.x = -0.22;
+cat.add(neck);
+
+// back legs, folded against the rump
+[-0.42, 0.42].forEach(sx => {
+  const thigh = new THREE.Mesh(new THREE.SphereGeometry(0.26, 16, 12), catMat2);
+  thigh.position.set(sx, 0.42, -0.34);
+  thigh.scale.set(0.8, 1.0, 1.15);
+  cat.add(thigh);
+  const foot = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), catMat2);
+  foot.position.set(sx, 0.11, -0.06);
+  foot.scale.set(0.9, 0.7, 1.35);
+  cat.add(foot);
+});
+
+// front legs, straight down under the chest
+[-0.26, 0.26].forEach(sx => {
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.095, 0.66, 14), catMat);
+  leg.position.set(sx, 0.42, 0.46);
+  leg.castShadow = true;
+  cat.add(leg);
+  const paw = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), catMat2);
+  paw.position.set(sx, 0.10, 0.52);
+  paw.scale.set(0.95, 0.7, 1.4);
+  cat.add(paw);
+});
+
+// head carried forward of the chest so the profile reads
+const headPivot = new THREE.Group();
+headPivot.position.set(0, 1.58, 0.46);
+cat.add(headPivot);
+
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.40, 26, 20), catMat);
+head.scale.set(1.0, 0.96, 1.02);
+head.castShadow = true;
+headPivot.add(head);
+
+// ears: big triangles standing clear of the skull
+[-0.24, 0.24].forEach(sx => {
+  const ear = new THREE.Mesh(new THREE.ConeGeometry(0.19, 0.42, 4), catMat2);
+  ear.position.set(sx, 0.40, -0.02);
+  ear.rotation.z = -sx * 1.1;
+  ear.rotation.y = Math.PI/4;
+  headPivot.add(ear);
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.10, 0.24, 4), darkMat);
+  inner.position.set(sx * 0.95, 0.38, 0.03);
+  inner.rotation.z = -sx * 1.1;
+  inner.rotation.y = Math.PI/4;
+  headPivot.add(inner);
+});
+
+// muzzle, nose, whisker pads
+const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.21, 16, 12), catMat);
+muzzle.position.set(0, -0.12, 0.31);
+muzzle.scale.set(1.35, 0.78, 0.85);
+headPivot.add(muzzle);
+const nose = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10),
+  new THREE.MeshPhongMaterial({color:0xe9a6b4}));
+nose.position.set(0, -0.07, 0.47);
+headPivot.add(nose);
+
+// eyes
+const eyeWhiteMat = new THREE.MeshPhongMaterial({color:0xf4f8ff, shininess:80});
+const irisMat = new THREE.MeshPhongMaterial({color:0x9fe04a, emissive:0x24640c, shininess:120});
+const pupilMat = new THREE.MeshBasicMaterial({color:0x0d0f12});
+const eyes = [];
+[-0.145, 0.145].forEach(sx => {
+  const socket = new THREE.Mesh(new THREE.SphereGeometry(0.105, 18, 14), eyeWhiteMat);
+  socket.position.set(sx, 0.05, 0.34);
+  headPivot.add(socket);
+  const iris = new THREE.Mesh(new THREE.SphereGeometry(0.068, 16, 12), irisMat);
+  iris.position.set(sx, 0.05, 0.41);
+  headPivot.add(iris);
+  const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 10), pupilMat);
+  pupil.position.set(sx, 0.05, 0.465);
+  headPivot.add(pupil);
+  eyes.push({iris, pupil, sx});
+});
+
+// whiskers
+const whiskerMat = new THREE.LineBasicMaterial({color:0xe4e9f2, transparent:true, opacity:0.9});
+[-1, 1].forEach(dir => {
+  [0.05, 0, -0.05].forEach((dy, i) => {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(dir*0.14, -0.10+dy, 0.40),
+      new THREE.Vector3(dir*(0.52+i*0.05), -0.05+dy*1.9, 0.46)
+    ]);
+    headPivot.add(new THREE.Line(g, whiskerMat));
+  });
+});
+
+// tail, rebuilt every frame from a curve
+const tailGroup = new THREE.Group();
+cat.add(tailGroup);
+const tailGeo = new THREE.BufferGeometry();
+const TAIL_N = 18;
+const tailPositions = new Float32Array((TAIL_N+1)*3);
+tailGeo.setAttribute('position', new THREE.BufferAttribute(tailPositions, 3));
+const tailMesh = new THREE.Line(tailGeo, new THREE.LineBasicMaterial({color:0xb6bcc8}));
+tailGroup.add(tailMesh);
+const tailPuff = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), catMat2);
+tailGroup.add(tailPuff);
+
+// ---------- mouse ----------
+const mouse = new THREE.Group();
+scene.add(mouse);
+
+const mBodyMat = new THREE.MeshPhongMaterial({color:0xeef0f8, shininess:70});
+const mBody = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 14), mBodyMat);
+mBody.scale.set(1.45, 0.85, 0.95);
+mBody.position.y = 0.22;
+mBody.castShadow = true;
+mouse.add(mBody);
+
+const mHead = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), mBodyMat);
+mHead.position.set(0.4, 0.28, 0);
+mHead.castShadow = true;
+mouse.add(mHead);
+
+const mNose = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
+  new THREE.MeshPhongMaterial({color:0xf08fa0}));
+mNose.position.set(0.56, 0.26, 0);
+mouse.add(mNose);
+
+[-0.1, 0.1].forEach(sz => {
+  const ear = new THREE.Mesh(new THREE.CircleGeometry(0.115, 16),
+    new THREE.MeshPhongMaterial({color:0xf2c4cd, side:THREE.DoubleSide}));
+  ear.position.set(0.31, 0.44, sz);
+  ear.rotation.y = Math.PI/2;
+  mouse.add(ear);
+});
+[-0.075, 0.075].forEach(sz => {
+  const e = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 8),
+    new THREE.MeshBasicMaterial({color:0x111111}));
+  e.position.set(0.49, 0.33, sz);
+  mouse.add(e);
+});
+
+// four little legs
+const mLegs = [];
+[[0.18,0.12],[0.18,-0.12],[-0.16,0.12],[-0.16,-0.12]].forEach(([x,z]) => {
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.022, 0.16, 8), mBodyMat);
+  leg.position.set(x, 0.09, z);
+  mouse.add(leg);
+  mLegs.push(leg);
+});
+
+// mouse tail: also rebuilt from a curve
+const mTailGeo = new THREE.BufferGeometry();
+const MTAIL_N = 12;
+const mTailPositions = new Float32Array((MTAIL_N+1)*3);
+mTailGeo.setAttribute('position', new THREE.BufferAttribute(mTailPositions, 3));
+const mTail = new THREE.Line(mTailGeo, new THREE.LineBasicMaterial({color:0xc9ccd8}));
+mouse.add(mTail);
+
+// contact shadow
+const mShadow = new THREE.Mesh(new THREE.CircleGeometry(0.32, 20),
+  new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.4}));
+mShadow.rotation.x = -Math.PI/2;
+mShadow.position.y = 0.008;
+scene.add(mShadow);
+
+// ---------- animation ----------
+const R = 3.3;
+const STEP = 1/30;
+let t = 0;
+const capText = document.getElementById('capText');
+const titleEl = document.getElementById('title');
+
+// timeline beats in seconds
+function caption(tt) {
+  if (tt < 1.3) return "ANTICIPATION \u2014 the mouse gathers itself at the edge of the ring";
+  if (tt < 4.4) return "SECONDARY ACTION \u2014 head, eyes and whiskers follow a moving target";
+  if (tt < 5.2) return "ANTICIPATION \u2014 the cat coils and lowers before committing";
+  if (tt < 6.2) return "SQUASH AND STRETCH \u2014 the body stretches through the lunge";
+  if (tt < 7.2) return "FOLLOW-THROUGH \u2014 tail and ears lag behind the head";
+  return "EASE OUT \u2014 weight settles back onto the haunches";
+}
+
+function setBody(sy, sxz) {
+  back.scale.set(0.98 * sxz, 0.86 * sy, 1.30 * sxz);
+  chest.scale.set(0.95 * sxz, 1.05 * sy, 0.95 * sxz);
+}
+
+function setTail(baseAngle, whip) {
+  const p = tailMesh.geometry.attributes.position;
+  for (let i = 0; i <= TAIL_N; i++) {
+    const u = i / TAIL_N;
+    const a = baseAngle + whip * Math.pow(u, 1.7);
+    const rad = 0.55 + u * 1.25;
+    p.array[i*3]     = Math.sin(a) * rad * u * 0.55;
+    p.array[i*3 + 1] = 0.50 + Math.sin(u * Math.PI * 0.85) * 1.05;
+    p.array[i*3 + 2] = -0.92 - Math.cos(a * 0.5) * u * 0.35;
+  }
+  p.needsUpdate = true;
+  const last = TAIL_N;
+  tailPuff.position.set(p.array[last*3], p.array[last*3+1], p.array[last*3+2]);
+}
+
+function setMouseTail(tailAngle) {
+  const p = mTail.geometry.attributes.position;
+  for (let i = 0; i <= MTAIL_N; i++) {
+    const u = i / MTAIL_N;
+    p.array[i*3]     = -0.36 - u * 0.75;
+    p.array[i*3 + 1] = 0.2 + Math.sin(u * 4 + tailAngle) * 0.08 * u;
+    p.array[i*3 + 2] = Math.sin(u * 3 + tailAngle) * 0.22 * u;
+  }
+  p.needsUpdate = true;
+}
+
+function frame(tt) {
+  // ---- timing envelope: mouse runs 1.3 s to 4.4 s, then pauses, then bolts ----
+  let ang;
+  if (tt < 1.3) {
+    ang = -0.55 + (tt / 1.3) * 0.12;              // crouched, barely moving
+  } else if (tt < 4.4) {
+    const u = (tt - 1.3) / 3.1;
+    ang = -0.43 + (1 - Math.cos(u * Math.PI)) * 0.5 * Math.PI;   // ease in and out of the run
+  } else if (tt < 5.2) {
+    ang = -0.43 + Math.PI;                        // frozen, watching
+  } else if (tt < 6.4) {
+    const u = (tt - 5.2) / 1.2;
+    ang = -0.43 + Math.PI + u * u * 2.6;          // accelerative escape
+  } else {
+    const u = Math.min(1, (tt - 6.4) / 1.6);
+    ang = -0.43 + Math.PI + 2.6 + u * 1.1;
+  }
+
+  const mx = Math.cos(ang) * R;
+  const mz = Math.sin(ang) * R;
+
+  // mouse position, facing travel direction
+  mouse.position.set(mx, 0, mz);
+  mouse.rotation.y = -ang - Math.PI/2;
+
+  // squash and stretch: crouch before the run, stretch while sprinting
+  let sy = 1, sxz = 1;
+  if (tt < 1.3) { sy = 0.78; sxz = 1.12; }
+  else if (tt > 1.3 && tt < 4.4) {
+    const bob = Math.abs(Math.sin((tt - 1.3) * 9));
+    sy = 0.94 + bob * 0.16; sxz = 1.06 - bob * 0.08;
+  } else if (tt >= 5.2 && tt < 6.6) { sy = 0.86; sxz = 1.2; }
+  else { sy = 0.92; sxz = 1.05; }
+  mBody.scale.set(1.45 * sxz, 0.85 * sy, 0.95 * sxz);
+  mBody.position.y = 0.22 * sy;
+
+  // leg gait
+  const gait = (tt > 1.3 && tt < 4.4) || tt >= 5.2 ? (tt * 14) : 0;
+  mLegs.forEach((leg, i) => {
+    leg.rotation.x = Math.sin(gait + i * Math.PI) * 0.9;
+  });
+
+  // mouse tail whips, always lagging the body
+  setMouseTail(ang * 1.6 + tt * 2.2);
+
+  mShadow.position.set(mx, 0.008, mz);
+  const ms = 0.85 + sy * 0.18;
+  mShadow.scale.set(ms, ms, ms);
+
+  // ---- cat ----
+  // head tracks the mouse, but lags slightly (overlap)
+  const lagAng = ang - 0.10;
+  const targetYaw = Math.atan2(Math.cos(lagAng) * R, Math.sin(lagAng) * R - 0.12);
+  headPivot.rotation.y += (targetYaw - headPivot.rotation.y) * 0.16;
+
+  // pitch dips as the mouse gets close, rises when it is far
+  const dist = 3.3;
+  const targetPitch = -0.10;
+  headPivot.rotation.x += (targetPitch - headPivot.rotation.x) * 0.10;
+
+  // pupils slide toward the target inside the eye
+  eyes.forEach(e => {
+    const px = Math.sin(targetYaw) * 0.026;
+    e.pupil.position.x = e.sx + px;
+  });
+
+  // body breathing
+  let br = 1 + Math.sin(tt * 2.4) * 0.018;
+  // anticipation crouch before the lunge
+  if (tt > 4.4 && tt < 5.2) {
+    const u = (tt - 4.4) / 0.8;
+    cat.position.z = -0.18 * u;
+    setBody((1 - 0.10*u) * br, 1 + 0.04*u);
+    headPivot.position.y = 1.58 - 0.09 * u;
+  } else if (tt >= 5.2 && tt < 6.4) {
+    const u = (tt - 5.2) / 1.2;
+    const punch = Math.sin(u * Math.PI);
+    cat.position.z = -0.18 + 0.62 * u;
+    setBody((1 + 0.07*punch) * br, 1 + 0.10*punch);
+    headPivot.position.y = 1.49 + 0.12 * punch;
+  } else {
+    const u = Math.min(1, Math.max(0, (tt - 6.4) / 1.6));
+    cat.position.z = 0.44 * (1 - u);
+    setBody(br, 1.0);
+    headPivot.position.y = 1.58 + (1-u) * 0.03;
+  }
+
+  // tail follow-through: base angle driven by head yaw, whip lags it
+  const whip = Math.sin(tt * 3.1) * 0.55 + headPivot.rotation.y * 0.5;
+  setTail(headPivot.rotation.y * 0.7 + 0.4, whip);
+
+  // ears flick when the mouse disappears behind the cat
+  const behind = Math.abs(((ang % (Math.PI*2)) + Math.PI*2) % (Math.PI*2) - Math.PI) < 0.5;
+  const flick = behind ? Math.sin(tt * 22) * 0.10 : 0;
+  cat.children.forEach(() => {});
+
+  // camera creeps in slightly
+  camera.position.z = 6.2 - Math.min(0.5, tt * 0.06);
+  camera.position.x = 3.1 - Math.min(0.45, tt * 0.05);
+  camera.position.y = 2.55 - Math.min(0.15, tt * 0.02);
+  camera.lookAt(0.15, 1.25, 0);
+
+  // captions and title card
+  capText.textContent = caption(tt);
+  titleEl.style.opacity = tt < 0.9 ? 1 : 0;
+
+  renderer.render(scene, camera);
+}
+
+if (location.hash === '#cap') {
+  window.__step = (i) => { t = i * STEP; frame(t); };
+  window.__step(1);
+} else {
+  let last = performance.now(), acc = 0;
+  const loop = (now) => {
+    acc += (now - last) / 1000; last = now;
+    if (acc > STEP) { t += STEP; acc = 0; }
+    frame(t);
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  titleEl.style.opacity = 1;
+}
+window.__ready = true;
+</script>
+</body>
+</html>
